@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Dictionary.Schema where
 
-import Data.Text
+import Data.ByteString
 
-data Słowo = Słowo { odmiana     :: Text
-                   , formaBazowa :: Text
+data Słowo = Słowo { odmiana     :: ByteString
+                   , formaBazowa :: ByteString
                    , morpho      :: Morpho
                    , kategoria   :: Maybe Kategoria
                    } deriving (Show, Read, Eq)

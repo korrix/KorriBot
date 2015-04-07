@@ -7,35 +7,45 @@
 {-# LANGUAGE UndecidableInstances   #-}
 {-# LANGUAGE TemplateHaskell        #-}
 
-module Dictionary.Parser where
+module Dictionary.Parser ( parseEntry ) where
 
 import Prelude hiding (readFile, putStrLn, putStr)
 
-import Data.Text hiding (map, foldr, empty)
-import Data.Text.IO
+import Data.ByteString
+import Data.Word
 
-import Data.Char (isAlphaNum)
-
-import Data.Attoparsec.Text
+import Data.Attoparsec.ByteString
 import Control.Applicative
 
 import qualified Dictionary.Schema as S
 import Dictionary.DeriveMorpho
 
 --
+-- Separator
+--
+
+manySep :: Parser Word8
+manySep = word8 46 -- '.'
+
+morphSep :: Parser Word8
+morphSep = word8 58 -- ':'
+
+fieldSep :: Parser Word8
+fieldSep = word8 9 -- '\t'
+
+notFieldSep :: Word8 -> Bool
+notFieldSep = (/= 9)
+--
 -- Helpers
 --
-voluntary :: Parser a -> Parser (Maybe a)
-voluntary p = Just <$> p <|> pure Nothing
-
-(-=>) :: Text -> b -> Parser b
-(-=>) s c = (string s >> return c)
+(-=>) :: ByteString -> b -> Parser b
+(-=>) s c = string s >> return c
 
 class HasParser a where
     parser :: Parser a
 
 instance HasParser a => HasParser [a] where
-    parser = parser `sepBy` (char '.')
+    parser = parser `sepBy` manySep
 
 -- Helper automatycznie dopasowujący parser po typie pola
 data Voluntary
@@ -49,14 +59,14 @@ class FieldParser flag a where
     field :: FieldProp a ~ flag => Parser a
 
 instance HasParser a => FieldParser Obligatory a where
-    field = char ':' *> parser
+    field = morphSep *> parser
 
 instance HasParser a => FieldParser Voluntary (Maybe a) where
-    field = voluntary (char ':' *> parser)
+    field = optional (morphSep *> parser)
 
 -- Helper automatycznie dopasowujący parser do pól konstruktora wartości
 class ConstructorParser a b where
-    cparse' :: Text -> Parser a -> Parser b
+    cparse' :: ByteString -> Parser a -> Parser b
 
 instance (FieldParser (FieldProp a) a, ConstructorParser b c) => ConstructorParser (a -> b) c where
     cparse' text constr = cparse' text $ constr <*> field
@@ -65,29 +75,22 @@ instance ConstructorParser a a where
     cparse' text constr = string text >> constr
 
 cparse text constr = cparse' text (pure constr)
-
---
--- Parser słownika
---
-słownikParser :: Parser [S.Słowo]
-słownikParser = many (słowoParser <* endOfLine)
-
 --
 -- Parser słowa
 --
 słowoParser :: Parser S.Słowo
 słowoParser = do
-    let wyraz = takeWhile1 (/= '\t') <* char '\t' <?> "Wyraz"
+    let wyraz = takeWhile1 notFieldSep <* fieldSep <?> "Wyraz"
     odmiana     <- wyraz
     formaBazowa <- wyraz
     morpho      <- parser
-    kategoria   <- voluntary (char '\t' *> parser)
+    kategoria   <- optional (fieldSep *> parser)
     return (S.Słowo odmiana formaBazowa morpho kategoria) <?> "Słowo"
 
+parseEntry :: ByteString -> Either String S.Słowo
+parseEntry = parseOnly słowoParser
+
 -- Automatyczne dostarczanie parsera dla morpho
-
---deriveMorpho = appE (appE (varE 'fmap) (conE 'S.MorphoPrzymiotnik)) (varE 'parser)
-
 instance HasParser S.Morpho where
     parser = $(deriveMorpho ''S.Morpho 'parser)
           <?> "Morpho"
@@ -264,18 +267,3 @@ instance HasParser S.Wykrzyknienie where
 instance HasParser S.Burkinostka where
     parser = cparse "burk" S.Burkinostka
           <?> "Burkinostka"
-
-test :: IO ()
-test = do
-    tekst <- readFile "small"
-    let słowa = splitOn "\n" tekst
-    let parsed = map (parseOnly słowoParser) słowa
-
-    let myprint słowo (Left err) = do
-            putStr słowo
-            putStr "\t"
-            putStrLn $ pack err
-        myprint _ _ = return ()
-
-    mapM_ (uncurry myprint) $ Prelude.zip słowa parsed
-    --print $ parseOnly słownikParser s
