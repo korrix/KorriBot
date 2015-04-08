@@ -22,9 +22,9 @@ process :: String -> IO ()
 process line = putStrLn line
 
 main :: IO ()
-main = test -- do
-    -- putStrLn "Witaj w KorrBot"
-    -- readEvalPrintLoop
+main = do
+    putStrLn "Witaj w KorrBot"
+    readEvalPrintLoop
 
 --test :: IO ()
 --test = do

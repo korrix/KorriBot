@@ -13,6 +13,7 @@ import Prelude hiding (readFile, putStrLn, putStr)
 
 import Data.ByteString
 import Data.Word
+import Data.Word8
 
 import Data.Attoparsec.ByteString
 import Control.Applicative
@@ -25,16 +26,16 @@ import Dictionary.DeriveMorpho
 --
 
 manySep :: Parser Word8
-manySep = word8 46 -- '.'
+manySep = word8 _period
 
 morphSep :: Parser Word8
-morphSep = word8 58 -- ':'
+morphSep = word8 _colon
 
 fieldSep :: Parser Word8
-fieldSep = word8 9 -- '\t'
+fieldSep = word8 _tab
 
 notFieldSep :: Word8 -> Bool
-notFieldSep = (/= 9)
+notFieldSep = (/= _tab)
 --
 -- Helpers
 --
