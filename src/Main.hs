@@ -1,12 +1,12 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import System.Console.Readline
+import Text.Show.Pretty
 
 import qualified Data.ByteString as B
 
 import Dictionary.Parser
-import Dictionary.Loader
+import Dictionary.Search
 
 readEvalPrintLoop :: IO ()
 readEvalPrintLoop = do
@@ -18,24 +18,22 @@ readEvalPrintLoop = do
                         process line
                         readEvalPrintLoop
 
+query :: String -> IO ()
+query word = do
+    q <- searchDict "bin/processed" word
+    case q of
+        Just match -> do
+            putStrLn $ ppShow $ parseEntry match
+        Nothing -> putStrLn "Nie znaleziono podanego słowa"
+
+
 process :: String -> IO ()
-process line = putStrLn line
+process line = case words line of
+    ("query":word:xs) -> query word
+    [] -> return ()
+    _ -> putStrLn "Nieznana komenda / niepoprawne wywołanie"
 
 main :: IO ()
 main = do
     putStrLn "Witaj w KorrBot"
     readEvalPrintLoop
-
---test :: IO ()
---test = do
---    tekst <- B.readFile "dictionary"
---    let słowa = B.split 10 tekst
---    let parsed = map parseEntry słowa
-
---    let myprint słowo (Left err) = do
---            B.putStr słowo
---            B.putStr "\t"
---            putStrLn err
---        myprint _ _ = return ()
-
---    mapM_ (uncurry myprint) $ zip słowa parsed

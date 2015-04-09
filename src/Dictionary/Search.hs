@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Dictionary.Loader where
+module Dictionary.Search ( searchDict ) where
 
 import qualified Data.ByteString      as B
 import qualified Data.ByteString.UTF8 as B
