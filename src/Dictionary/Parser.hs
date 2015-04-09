@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE UndecidableInstances   #-}
 {-# LANGUAGE TemplateHaskell        #-}
@@ -12,6 +11,7 @@ module Dictionary.Parser ( parseEntry ) where
 import Prelude hiding (readFile, putStrLn, putStr)
 
 import Data.ByteString
+import qualified Data.ByteString.UTF8 as B
 import Data.Word
 import Data.Word8
 
@@ -34,13 +34,13 @@ morphSep = word8 _colon
 fieldSep :: Parser Word8
 fieldSep = word8 _tab
 
-notFieldSep :: Word8 -> Bool
-notFieldSep = (/= _tab)
+fieldSepPred :: Word8 -> Bool
+fieldSepPred x = x == _tab || x == _lf
 --
 -- Helpers
 --
-(-=>) :: ByteString -> b -> Parser b
-(-=>) s c = string s >> return c
+(-=>) :: String -> b -> Parser b
+(-=>) s c = string (B.fromString s) >> return c
 
 class HasParser a where
     parser :: Parser a
@@ -67,13 +67,13 @@ instance HasParser a => FieldParser Voluntary (Maybe a) where
 
 -- Helper automatycznie dopasowujący parser do pól konstruktora wartości
 class ConstructorParser a b where
-    cparse' :: ByteString -> Parser a -> Parser b
+    cparse' :: String -> Parser a -> Parser b
 
 instance (FieldParser (FieldProp a) a, ConstructorParser b c) => ConstructorParser (a -> b) c where
     cparse' text constr = cparse' text $ constr <*> field
 
 instance ConstructorParser a a where
-    cparse' text constr = string text >> constr
+    cparse' text constr = string (B.fromString text) >> constr
 
 cparse text constr = cparse' text (pure constr)
 --
@@ -81,15 +81,18 @@ cparse text constr = cparse' text (pure constr)
 --
 słowoParser :: Parser S.Słowo
 słowoParser = do
-    let wyraz = takeWhile1 notFieldSep <* fieldSep <?> "Wyraz"
+    let wyraz = takeTill fieldSepPred <* fieldSep <?> "Wyraz"
     odmiana     <- wyraz
     formaBazowa <- wyraz
     morpho      <- parser
     kategoria   <- optional (fieldSep *> parser)
     return (S.Słowo odmiana formaBazowa morpho kategoria) <?> "Słowo"
 
-parseEntry :: ByteString -> Either String S.Słowo
-parseEntry = parseOnly słowoParser
+entryParser :: Parser [S.Słowo]
+entryParser = słowoParser `sepBy` word8 _lf
+
+parseEntry :: ByteString -> Either String [S.Słowo]
+parseEntry = parseOnly entryParser
 
 -- Automatyczne dostarczanie parsera dla morpho
 instance HasParser S.Morpho where
@@ -102,6 +105,7 @@ instance HasParser S.Kategoria where
           <|> "imię"         -=> S.Imię
           <|> "nazwisko"     -=> S.Nazwisko
           <|> "określenie"   -=> S.Określenie
+          <|> "organizacja"  -=> S.Organizacja
           <|> "osoba"        -=> S.Osoba
           <|> "pospolita"    -=> S.Pospolita
           <|> "własna"       -=> S.Własna

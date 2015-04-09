@@ -31,6 +31,7 @@ data Kategoria = Etnonim
                | Imię
                | Nazwisko
                | Określenie
+               | Organizacja
                | Osoba
                | Pospolita
                | Własna
